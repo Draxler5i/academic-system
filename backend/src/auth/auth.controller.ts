@@ -13,7 +13,7 @@ export class AuthController {
 
   @Post('login')
   login(@Body() credentials: LoginDto) {
-    return this.authService.login(credentials?.email, credentials?.password);
+    return this.authService.login(credentials.email, credentials.password);
   }
 
   @Get('me')
