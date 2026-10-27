@@ -79,7 +79,7 @@ Historial académico:
 - `GET /grades/students/:studentId` permite a administradores y docentes consultar el historial de un estudiante.
 - `GET /grades/history` (solo administrador) devuelve el historial de todos los estudiantes. Filtros opcionales: `year` (gestión), `period`, `subjectId` (materia), `courseOfferingId` (curso) y `search` (código, nombre o apellido del estudiante).
 
-El resumen de cada curso incluye `evaluatedWeight`, `finalScore` (puntaje acumulado: suma de `score × weight / 100`) y `status`: `IN_PROGRESS` hasta evaluar el 100 %, luego `PASSED` si el puntaje es 51 o más, o `FAILED`. Una inscripción con notas registradas (incluso eliminadas) no se puede cancelar, para no perder el historial.
+El resumen de cada curso incluye `evaluatedWeight`, `finalScore`, `passingScore` y `status`: `IN_PROGRESS` hasta evaluar el 100 %, luego `PASSED` si el puntaje alcanza la nota mínima, o `FAILED`. El cálculo lo define la política configurada en `.env`: `GRADING_POLICY=weighted` (por defecto; suma de `score × weight / 100`) o `average` (promedio simple), y `PASSING_SCORE` (por defecto 51). Una inscripción con notas registradas (incluso eliminadas) no se puede cancelar, para no perder el historial. Cada inscripción y cambio de nota se registra en el log de auditoría de la API.
 
 El seed crea la cuenta docente indicada por `DEMO_TEACHER_*` (por defecto `docente@unicen.edu.bo` / `Docente123!`), la asigna a Álgebra y Programación I (paralelo A, primer semestre 2026) y registra notas de ejemplo solo si la inscripción aún no tiene notas.
 

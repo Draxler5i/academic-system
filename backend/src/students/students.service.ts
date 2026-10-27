@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { isPrismaError, PrismaErrorCode } from '../common/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateStudentDto } from './dto/create-student.dto.js';
 import { UpdateStudentDto } from './dto/update-student.dto.js';
@@ -144,10 +145,7 @@ export class StudentsService {
   }
 
   private throwIfUniqueConstraint(error: unknown): void {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
+    if (isPrismaError(error, PrismaErrorCode.UniqueConstraint)) {
       throw new ConflictException(
         'El correo, código de estudiante o identificador ya está registrado',
       );

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { isPrismaError, PrismaErrorCode } from '../common/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateSubjectDto } from './dto/create-subject.dto.js';
 import { UpdateSubjectDto } from './dto/update-subject.dto.js';
@@ -70,10 +70,7 @@ export class SubjectsService {
       await this.prisma.subject.delete({ where: { id } });
       return { id, deleted: true };
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2003'
-      ) {
+      if (isPrismaError(error, PrismaErrorCode.ForeignKeyConstraint)) {
         throw new ConflictException(
           'No se puede eliminar una materia con ofertas de cursos asociadas',
         );
@@ -83,10 +80,7 @@ export class SubjectsService {
   }
 
   private throwIfUniqueConstraint(error: unknown): void {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
+    if (isPrismaError(error, PrismaErrorCode.UniqueConstraint)) {
       throw new ConflictException('El código de materia ya está registrado');
     }
   }

@@ -55,6 +55,7 @@ export interface Grade {
 export interface GradeSummary {
   evaluatedWeight: number
   finalScore: number
+  passingScore: number
   status: 'PASSED' | 'FAILED' | 'IN_PROGRESS'
 }
 

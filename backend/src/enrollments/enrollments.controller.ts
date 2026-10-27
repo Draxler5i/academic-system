@@ -4,19 +4,18 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
-import { AuthTokenPayload, UserRole } from '../auth/auth.types.js';
+import { UserRole } from '../auth/auth.types.js';
+import type { AuthTokenPayload } from '../auth/auth.types.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { RolesGuard } from '../auth/roles.guard.js';
+import { CurrentUser } from '../common/current-user.decorator.js';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto.js';
 import { EnrollmentsService } from './enrollments.service.js';
-
-type AuthenticatedRequest = Request & { user: AuthTokenPayload };
 
 @Controller('enrollments')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -25,8 +24,8 @@ export class EnrollmentsController {
 
   @Get('me')
   @Roles(UserRole.STUDENT)
-  findMine(@Req() request: AuthenticatedRequest) {
-    return this.enrollmentsService.findMine(request.user.sub);
+  findMine(@CurrentUser() user: AuthTokenPayload) {
+    return this.enrollmentsService.findMine(user.sub);
   }
 
   @Get()
@@ -38,19 +37,22 @@ export class EnrollmentsController {
   @Post()
   @Roles(UserRole.STUDENT)
   create(
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser() user: AuthTokenPayload,
     @Body() dto: CreateEnrollmentDto,
   ) {
-    return this.enrollmentsService.create(request.user.sub, dto);
+    return this.enrollmentsService.create(user.sub, dto);
   }
 
   @Delete(':id')
   @Roles(UserRole.ADMINISTRATOR, UserRole.STUDENT)
-  remove(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthTokenPayload,
+  ) {
     return this.enrollmentsService.remove(
       id,
-      request.user.sub,
-      request.user.role === UserRole.ADMINISTRATOR,
+      user.sub,
+      user.role === UserRole.ADMINISTRATOR,
     );
   }
 }

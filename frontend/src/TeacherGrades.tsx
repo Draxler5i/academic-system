@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { authRequest, errorMessage, periodLabels } from './api'
 import type { CourseOffering, CourseRoster, Grade } from './api'
-import { GradeSummaryBadge } from './GradeSummaryBadge'
+import { GradeSummaryBadge } from './GradeDisplay'
 
 interface GradeFormValues {
   title: string

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { isPrismaError, PrismaErrorCode } from '../common/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateCourseOfferingDto } from './dto/create-course-offering.dto.js';
 import { ListCourseOfferingsDto } from './dto/list-course-offerings.dto.js';
@@ -135,18 +135,12 @@ export class CourseOfferingsService {
   }
 
   private throwDatabaseError(error: unknown): never {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
+    if (isPrismaError(error, PrismaErrorCode.UniqueConstraint)) {
       throw new ConflictException(
         'Ya existe una oferta para esa materia, gestión, periodo y paralelo',
       );
     }
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2003'
-    ) {
+    if (isPrismaError(error, PrismaErrorCode.ForeignKeyConstraint)) {
       throw new NotFoundException('Materia o docente no encontrado');
     }
     throw error;

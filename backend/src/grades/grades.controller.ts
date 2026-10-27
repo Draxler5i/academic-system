@@ -8,20 +8,18 @@ import {
   Patch,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
-import { AuthTokenPayload, UserRole } from '../auth/auth.types.js';
+import { UserRole } from '../auth/auth.types.js';
+import type { AuthTokenPayload } from '../auth/auth.types.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { Roles } from '../auth/roles.decorator.js';
 import { RolesGuard } from '../auth/roles.guard.js';
+import { CurrentUser } from '../common/current-user.decorator.js';
 import { CreateGradeDto } from './dto/create-grade.dto.js';
 import { ListGradeHistoryDto } from './dto/list-grade-history.dto.js';
 import { UpdateGradeDto } from './dto/update-grade.dto.js';
 import { GradesService } from './grades.service.js';
-
-type AuthenticatedRequest = Request & { user: AuthTokenPayload };
 
 @Controller('grades')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -30,8 +28,8 @@ export class GradesController {
 
   @Get('me')
   @Roles(UserRole.STUDENT)
-  findMyHistory(@Req() request: AuthenticatedRequest) {
-    return this.gradesService.findMyHistory(request.user.sub);
+  findMyHistory(@CurrentUser() user: AuthTokenPayload) {
+    return this.gradesService.findMyHistory(user.sub);
   }
 
   @Get('history')
@@ -42,20 +40,20 @@ export class GradesController {
 
   @Get('teaching')
   @Roles(UserRole.TEACHER)
-  findTeaching(@Req() request: AuthenticatedRequest) {
-    return this.gradesService.findTeaching(request.user.sub);
+  findTeaching(@CurrentUser() user: AuthTokenPayload) {
+    return this.gradesService.findTeaching(user.sub);
   }
 
   @Get('course-offerings/:courseOfferingId')
   @Roles(UserRole.ADMINISTRATOR, UserRole.TEACHER)
   findByCourseOffering(
     @Param('courseOfferingId', ParseUUIDPipe) courseOfferingId: string,
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser() user: AuthTokenPayload,
   ) {
     return this.gradesService.findByCourseOffering(
       courseOfferingId,
-      request.user.sub,
-      request.user.role === UserRole.ADMINISTRATOR,
+      user.sub,
+      user.role === UserRole.ADMINISTRATOR,
     );
   }
 
@@ -67,26 +65,26 @@ export class GradesController {
 
   @Post()
   @Roles(UserRole.TEACHER)
-  create(@Req() request: AuthenticatedRequest, @Body() dto: CreateGradeDto) {
-    return this.gradesService.create(request.user.sub, dto);
+  create(@CurrentUser() user: AuthTokenPayload, @Body() dto: CreateGradeDto) {
+    return this.gradesService.create(user.sub, dto);
   }
 
   @Patch(':id')
   @Roles(UserRole.TEACHER)
   update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser() user: AuthTokenPayload,
     @Body() dto: UpdateGradeDto,
   ) {
-    return this.gradesService.update(id, request.user.sub, dto);
+    return this.gradesService.update(id, user.sub, dto);
   }
 
   @Delete(':id')
   @Roles(UserRole.TEACHER)
   remove(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() request: AuthenticatedRequest,
+    @CurrentUser() user: AuthTokenPayload,
   ) {
-    return this.gradesService.remove(id, request.user.sub);
+    return this.gradesService.remove(id, user.sub);
   }
 }

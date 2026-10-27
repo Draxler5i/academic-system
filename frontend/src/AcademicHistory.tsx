@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { authRequest, errorMessage, gradeStatusLabels, periodLabels } from './api'
 import type { HistoryEntry } from './api'
-import { GradeSummaryBadge } from './GradeSummaryBadge'
+import { GradeSummaryBadge, GradeTable } from './GradeDisplay'
 
 export function AcademicHistory() {
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -32,7 +32,7 @@ export function AcademicHistory() {
           <p className="eyebrow">NOTAS Y CALIFICACIONES</p>
           <h2 id="history-title">Historial académico</h2>
         </div>
-        <span className="enrollment-count">Aprobación: 51 / 100</span>
+        <span className="enrollment-count">{history.length} cursos</span>
       </div>
 
       {error && (
@@ -64,27 +64,7 @@ export function AcademicHistory() {
                 {entry.grades.length === 0 ? (
                   <p className="grade-empty">Sin notas registradas.</p>
                 ) : (
-                  <table className="grade-table">
-                    <thead>
-                      <tr>
-                        <th>Evaluación</th>
-                        <th>Ponderación</th>
-                        <th>Nota</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entry.grades.map((grade) => (
-                        <tr key={grade.id}>
-                          <td>
-                            {grade.title}
-                            {grade.comment && <small>{grade.comment}</small>}
-                          </td>
-                          <td>{grade.weight} %</td>
-                          <td>{grade.score}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <GradeTable grades={entry.grades} />
                 )}
               </article>
             )
@@ -92,9 +72,8 @@ export function AcademicHistory() {
         </div>
       )}
       <p className="grade-footnote">
-        El puntaje acumulado suma cada nota según su ponderación. El estado pasa a{' '}
-        {gradeStatusLabels.PASSED.toLowerCase()} o {gradeStatusLabels.FAILED.toLowerCase()} cuando
-        se evalúa el 100 % del curso.
+        El estado pasa a {gradeStatusLabels.PASSED.toLowerCase()} o{' '}
+        {gradeStatusLabels.FAILED.toLowerCase()} cuando se evalúa el 100 % del curso.
       </p>
     </section>
   )

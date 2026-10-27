@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { authRequest, errorMessage, periodLabels } from './api'
 import type { AcademicPeriod, CourseOffering, Subject, StudentHistoryEntry } from './api'
-import { GradeSummaryBadge } from './GradeSummaryBadge'
+import { GradeSummaryBadge, GradeTable } from './GradeDisplay'
 
 interface Filters {
   year: string
@@ -216,27 +216,7 @@ export function AdminAcademicHistory() {
                 ) : (
                   <details className="history-details">
                     <summary>Ver {entry.grades.length} notas</summary>
-                    <table className="grade-table">
-                      <thead>
-                        <tr>
-                          <th>Evaluación</th>
-                          <th>Ponderación</th>
-                          <th>Nota</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {entry.grades.map((grade) => (
-                          <tr key={grade.id}>
-                            <td>
-                              {grade.title}
-                              {grade.comment && <small>{grade.comment}</small>}
-                            </td>
-                            <td>{grade.weight} %</td>
-                            <td>{grade.score}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <GradeTable grades={entry.grades} />
                   </details>
                 )}
               </article>

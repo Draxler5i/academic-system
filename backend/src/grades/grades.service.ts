@@ -4,72 +4,29 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { DomainEventPublisher } from '../common/domain-event.publisher.js';
+import { DomainEvent } from '../common/domain-events.js';
+import { StudentProfilesService } from '../students/student-profiles.service.js';
 import { CreateGradeDto } from './dto/create-grade.dto.js';
 import { ListGradeHistoryDto } from './dto/list-grade-history.dto.js';
 import { UpdateGradeDto } from './dto/update-grade.dto.js';
-import { summarizeGrades } from './grade-summary.js';
+import { GradesRepository } from './grades.repository.js';
+import { GradingPolicy } from './grading/grading-policy.js';
+import type { WeightedScore } from './grading/grading-policy.js';
 
-const activeGrades = {
-  where: { deletedAt: null },
-  orderBy: { createdAt: 'asc' },
-  select: {
-    id: true,
-    title: true,
-    score: true,
-    weight: true,
-    comment: true,
-    createdAt: true,
-    updatedAt: true,
-    recordedBy: { select: { id: true, name: true } },
-  },
-} satisfies Prisma.Enrollment$gradesArgs;
-
-const offeringSummary = {
-  include: {
-    subject: true,
-    teacher: { select: { id: true, name: true, email: true } },
-  },
-} satisfies Prisma.CourseOfferingDefaultArgs;
-
-const studentSummary = {
-  select: {
-    id: true,
-    studentCode: true,
-    firstName: true,
-    lastName: true,
-    user: { select: { email: true } },
-  },
-} satisfies Prisma.StudentDefaultArgs;
-
-const gradeWithEnrollment = {
-  include: {
-    enrollment: {
-      select: {
-        id: true,
-        courseOffering: { select: { id: true, teacherId: true } },
-      },
-    },
-  },
-} satisfies Prisma.GradeDefaultArgs;
-
-type GradedEnrollment = { grades: { score: number; weight: number }[] };
-
-function withSummary<T extends GradedEnrollment>(enrollment: T) {
-  return { ...enrollment, summary: summarizeGrades(enrollment.grades) };
-}
+const maxTotalWeight = 100;
 
 @Injectable()
 export class GradesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly grades: GradesRepository,
+    private readonly gradingPolicy: GradingPolicy,
+    private readonly studentProfiles: StudentProfilesService,
+    private readonly events: DomainEventPublisher,
+  ) {}
 
   findTeaching(teacherId: string) {
-    return this.prisma.courseOffering.findMany({
-      where: { teacherId },
-      ...offeringSummary,
-      orderBy: [{ year: 'desc' }, { period: 'asc' }, { section: 'asc' }],
-    });
+    return this.grades.findCoursesTaughtBy(teacherId);
   }
 
   async findByCourseOffering(
@@ -77,10 +34,7 @@ export class GradesService {
     userId: string,
     isAdministrator: boolean,
   ) {
-    const offering = await this.prisma.courseOffering.findUnique({
-      where: { id: courseOfferingId },
-      ...offeringSummary,
-    });
+    const offering = await this.grades.findCourseOffering(courseOfferingId);
     if (!offering) {
       throw new NotFoundException('Oferta de curso no encontrada');
     }
@@ -90,146 +44,95 @@ export class GradesService {
       );
     }
 
-    const enrollments = await this.prisma.enrollment.findMany({
-      where: { courseOfferingId },
-      include: { student: studentSummary, grades: activeGrades },
-      orderBy: [{ student: { lastName: 'asc' } }, { student: { firstName: 'asc' } }],
-    });
-
-    return { offering, enrollments: enrollments.map(withSummary) };
+    const enrollments = await this.grades.findCourseRoster(courseOfferingId);
+    return { offering, enrollments: this.withSummaries(enrollments) };
   }
 
   async findMyHistory(userId: string) {
-    const student = await this.prisma.student.findUnique({
-      where: { userId },
-      select: { id: true },
-    });
-    if (!student) {
-      throw new NotFoundException('No existe un perfil de estudiante para esta cuenta');
-    }
-    return this.findHistory(student.id);
+    const studentId = await this.studentProfiles.getIdByUserId(userId);
+    return this.withSummaries(await this.grades.findStudentHistory(studentId));
   }
 
   async findStudentHistory(studentId: string) {
-    const student = await this.prisma.student.findUnique({
-      where: { id: studentId },
-      select: { id: true },
-    });
-    if (!student) {
-      throw new NotFoundException('Estudiante no encontrado');
-    }
-    return this.findHistory(student.id);
+    await this.studentProfiles.assertExists(studentId);
+    return this.withSummaries(await this.grades.findStudentHistory(studentId));
   }
 
   async findAllHistory(filters: ListGradeHistoryDto) {
-    const search = filters.search?.trim();
-    const enrollments = await this.prisma.enrollment.findMany({
-      where: {
-        courseOfferingId: filters.courseOfferingId,
-        courseOffering: {
-          year: filters.year,
-          period: filters.period,
-          subjectId: filters.subjectId,
-        },
-        ...(search
-          ? {
-              student: {
-                OR: [
-                  { studentCode: { contains: search, mode: 'insensitive' } },
-                  { firstName: { contains: search, mode: 'insensitive' } },
-                  { lastName: { contains: search, mode: 'insensitive' } },
-                ],
-              },
-            }
-          : {}),
-      },
-      include: {
-        student: studentSummary,
-        courseOffering: offeringSummary,
-        grades: activeGrades,
-      },
-      orderBy: [
-        { courseOffering: { year: 'desc' } },
-        { courseOffering: { period: 'asc' } },
-        { courseOffering: { subject: { code: 'asc' } } },
-        { courseOffering: { section: 'asc' } },
-        { student: { lastName: 'asc' } },
-        { student: { firstName: 'asc' } },
-      ],
-    });
-    return enrollments.map(withSummary);
+    return this.withSummaries(await this.grades.findHistory(filters));
   }
 
   async create(teacherId: string, dto: CreateGradeDto) {
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { id: dto.enrollmentId },
-      select: { id: true, courseOffering: { select: { teacherId: true } } },
-    });
-    if (!enrollment) {
+    const courseTeacherId = await this.grades.findCourseTeacherOfEnrollment(
+      dto.enrollmentId,
+    );
+    if (courseTeacherId === undefined) {
       throw new NotFoundException('Inscripción no encontrada');
     }
-    this.assertTeaches(enrollment.courseOffering.teacherId, teacherId);
-    await this.assertWeightAvailable(enrollment.id, dto.weight);
+    this.assertTeaches(courseTeacherId, teacherId);
+    await this.assertWeightAvailable(dto.enrollmentId, dto.weight);
 
-    return this.prisma.grade.create({
-      data: {
-        enrollmentId: enrollment.id,
-        title: dto.title.trim(),
-        score: dto.score,
-        weight: dto.weight,
-        comment: dto.comment?.trim() || null,
-        recordedById: teacherId,
-      },
+    const grade = await this.grades.create({
+      enrollmentId: dto.enrollmentId,
+      title: dto.title.trim(),
+      score: dto.score,
+      weight: dto.weight,
+      comment: dto.comment?.trim() || null,
+      recordedById: teacherId,
     });
+    this.events.publish(DomainEvent.GradeRecorded, {
+      entityId: grade.id,
+      actorId: teacherId,
+      details: { enrollmentId: grade.enrollmentId, score: grade.score, weight: grade.weight },
+    });
+    return grade;
   }
 
   async update(id: string, teacherId: string, dto: UpdateGradeDto) {
-    const grade = await this.findActiveGrade(id);
-    this.assertTeaches(grade.enrollment.courseOffering.teacherId, teacherId);
+    const existing = await this.findActiveGrade(id);
+    this.assertTeaches(existing.courseTeacherId, teacherId);
     if (dto.weight !== undefined) {
-      await this.assertWeightAvailable(grade.enrollmentId, dto.weight, grade.id);
+      await this.assertWeightAvailable(existing.enrollmentId, dto.weight, id);
     }
 
-    return this.prisma.grade.update({
-      where: { id },
-      data: {
-        title: dto.title?.trim(),
-        score: dto.score,
-        weight: dto.weight,
-        comment: dto.comment === undefined ? undefined : dto.comment.trim() || null,
-        recordedById: teacherId,
-      },
+    const grade = await this.grades.update(id, {
+      title: dto.title?.trim(),
+      score: dto.score,
+      weight: dto.weight,
+      comment: dto.comment === undefined ? undefined : dto.comment.trim() || null,
+      recordedById: teacherId,
     });
+    this.events.publish(DomainEvent.GradeUpdated, {
+      entityId: id,
+      actorId: teacherId,
+      details: { changes: dto },
+    });
+    return grade;
   }
 
+  /** Soft delete: the grade is kept for auditing but hidden from every query. */
   async remove(id: string, teacherId: string) {
-    const grade = await this.findActiveGrade(id);
-    this.assertTeaches(grade.enrollment.courseOffering.teacherId, teacherId);
+    const existing = await this.findActiveGrade(id);
+    this.assertTeaches(existing.courseTeacherId, teacherId);
 
-    await this.prisma.grade.update({
-      where: { id },
-      data: { deletedAt: new Date(), deletedById: teacherId },
+    await this.grades.softDelete(id, teacherId);
+    this.events.publish(DomainEvent.GradeDeleted, {
+      entityId: id,
+      actorId: teacherId,
+      details: { enrollmentId: existing.enrollmentId },
     });
     return { id, deleted: true };
   }
 
-  private async findHistory(studentId: string) {
-    const enrollments = await this.prisma.enrollment.findMany({
-      where: { studentId },
-      include: { courseOffering: offeringSummary, grades: activeGrades },
-      orderBy: [
-        { courseOffering: { year: 'desc' } },
-        { courseOffering: { period: 'asc' } },
-      ],
-    });
-    return enrollments.map(withSummary);
+  private withSummaries<T extends { grades: WeightedScore[] }>(enrollments: T[]) {
+    return enrollments.map((enrollment) => ({
+      ...enrollment,
+      summary: this.gradingPolicy.summarize(enrollment.grades),
+    }));
   }
 
   private async findActiveGrade(id: string) {
-    const grade = await this.prisma.grade.findFirst({
-      where: { id, deletedAt: null },
-      ...gradeWithEnrollment,
-    });
+    const grade = await this.grades.findActiveGrade(id);
     if (!grade) {
       throw new NotFoundException('Nota no encontrada');
     }
@@ -249,18 +152,10 @@ export class GradesService {
     weight: number,
     excludedGradeId?: string,
   ) {
-    const { _sum } = await this.prisma.grade.aggregate({
-      where: {
-        enrollmentId,
-        deletedAt: null,
-        ...(excludedGradeId ? { id: { not: excludedGradeId } } : {}),
-      },
-      _sum: { weight: true },
-    });
-    const usedWeight = _sum.weight ?? 0;
-    if (usedWeight + weight > 100) {
+    const usedWeight = await this.grades.sumActiveWeight(enrollmentId, excludedGradeId);
+    if (usedWeight + weight > maxTotalWeight) {
       throw new BadRequestException(
-        `La ponderación supera el 100 %. Disponible: ${100 - usedWeight} %`,
+        `La ponderación supera el 100 %. Disponible: ${maxTotalWeight - usedWeight} %`,
       );
     }
   }
