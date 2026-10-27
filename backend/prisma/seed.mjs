@@ -28,6 +28,13 @@ async function main() {
     role: 'ADMINISTRATOR',
   });
 
+  const teacher = await seedAccount({
+    email: required('DEMO_TEACHER_EMAIL'),
+    password: required('DEMO_TEACHER_PASSWORD'),
+    name: process.env.DEMO_TEACHER_NAME ?? 'Docente de prueba',
+    role: 'TEACHER',
+  });
+
   const firstName = required('DEMO_STUDENT_FIRST_NAME');
   const lastName = required('DEMO_STUDENT_LAST_NAME');
   const student = await seedAccount({
@@ -145,6 +152,14 @@ async function main() {
     });
   }
 
+  const demoGrades = {
+    'MAT-101': [
+      { title: 'Primer parcial', score: 72, weight: 30 },
+      { title: 'Segundo parcial', score: 65, weight: 30 },
+    ],
+    'INF-101': [{ title: 'Práctica 1', score: 88, weight: 20 }],
+  };
+
   for (const code of ['MAT-101', 'INF-101']) {
     const subject = seededSubjects.get(code);
     const offering = await prisma.courseOffering.findUnique({
@@ -161,7 +176,12 @@ async function main() {
       throw new Error(`Demo course offering for ${code} was not created`);
     }
 
-    await prisma.enrollment.upsert({
+    await prisma.courseOffering.update({
+      where: { id: offering.id },
+      data: { teacherId: teacher.id },
+    });
+
+    const enrollment = await prisma.enrollment.upsert({
       where: {
         studentId_courseOfferingId: {
           studentId: studentProfile.id,
@@ -182,10 +202,24 @@ async function main() {
       where: { id: offering.id },
       data: { enrolled },
     });
+
+    // Only seed grades once so re-running the seed never overrides a teacher's edits.
+    const hasGrades = await prisma.grade.count({
+      where: { enrollmentId: enrollment.id },
+    });
+    if (!hasGrades) {
+      await prisma.grade.createMany({
+        data: demoGrades[code].map((grade) => ({
+          ...grade,
+          enrollmentId: enrollment.id,
+          recordedById: teacher.id,
+        })),
+      });
+    }
   }
 
   console.log(
-    `Seeded accounts, ${subjects.length} subjects, ${offerings.length} course offerings, and demo enrollments.`,
+    `Seeded accounts, ${subjects.length} subjects, ${offerings.length} course offerings, demo enrollments and grades.`,
   );
 }
 

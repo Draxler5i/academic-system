@@ -8,6 +8,7 @@ import { StudentsModule } from './students/students.module.js';
 import { SubjectsModule } from './subjects/subjects.module.js';
 import { CourseOfferingsModule } from './course-offerings/course-offerings.module.js';
 import { EnrollmentsModule } from './enrollments/enrollments.module.js';
+import { GradesModule } from './grades/grades.module.js';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EnrollmentsModule } from './enrollments/enrollments.module.js';
     SubjectsModule,
     CourseOfferingsModule,
     EnrollmentsModule,
+    GradesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

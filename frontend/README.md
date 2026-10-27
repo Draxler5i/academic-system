@@ -14,9 +14,9 @@ Interfaz de inicio de sesión para el sistema académico, creada con React, Type
 
 La URL del backend se configura con `VITE_API_URL`. Puedes copiar `.env.example` a `.env` para cambiarla.
 
-## Cuenta de demostración
+## Cuentas de demostración
 
-- Correo: `estudiante@unicen.edu.bo`
-- Contraseña: `Estudiante123!`
+- Estudiante: `estudiante@unicen.edu.bo` / `Estudiante123!` (inscripciones e historial académico)
+- Docente: `docente@unicen.edu.bo` / `Docente123!` (registro, edición y eliminación de notas)
 
 La aplicación obtiene un JWT del backend y valida la sesión existente al recargar la página.

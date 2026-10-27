@@ -139,6 +139,13 @@ export class EnrollmentsService {
         'Solo puedes cancelar tus propias inscripciones',
       );
     }
+    // Includes soft-deleted grades: removing the enrollment would erase them for good.
+    const gradeCount = await this.prisma.grade.count({ where: { enrollmentId: id } });
+    if (gradeCount > 0) {
+      throw new ConflictException(
+        'No se puede cancelar una inscripción con notas registradas',
+      );
+    }
 
     await this.prisma.$transaction(async (transaction) => {
       await transaction.enrollment.delete({ where: { id } });

@@ -1,78 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
-
-type UserRole = 'administrator' | 'teacher' | 'student'
-
-interface User {
-  id: string
-  email: string
-  name: string
-  role: UserRole
-}
-
-interface LoginResponse {
-  accessToken: string
-  tokenType: 'Bearer'
-  expiresIn: number
-  user: User
-}
-
-type AcademicPeriod = 'ANNUAL' | 'FIRST_SEMESTER' | 'SECOND_SEMESTER'
-
-interface CourseOffering {
-  id: string
-  year: number
-  period: AcademicPeriod
-  section: string
-  capacity: number
-  enrolled: number
-  classroom: string | null
-  schedule: string | null
-  subject: {
-    code: string
-    name: string
-    description: string | null
-    credits: number
-  }
-  teacher: { name: string } | null
-}
-
-interface Enrollment {
-  id: string
-  enrolledAt: string
-  courseOffering: CourseOffering
-}
-
-const apiUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:3010').replace(
-  /\/$/,
-  '',
-)
-const tokenStorageKey = 'unicen_access_token'
-
-const periodLabels: Record<AcademicPeriod, string> = {
-  ANNUAL: 'Anual',
-  FIRST_SEMESTER: 'Primer semestre',
-  SECOND_SEMESTER: 'Segundo semestre',
-}
-
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, options)
-  const body: unknown = await response.json().catch(() => null)
-
-  if (!response.ok) {
-    const message =
-      typeof body === 'object' &&
-      body !== null &&
-      'message' in body &&
-      typeof body.message === 'string'
-        ? body.message
-        : 'No fue posible completar la solicitud.'
-    throw new Error(message)
-  }
-
-  return body as T
-}
+import { AcademicHistory } from './AcademicHistory'
+import { AdminAcademicHistory } from './AdminAcademicHistory'
+import { periodLabels, request, tokenStorageKey } from './api'
+import type { CourseOffering, Enrollment, LoginResponse, User } from './api'
+import { TeacherGrades } from './TeacherGrades'
 
 async function loadStudentData(token: string) {
   const headers = { Authorization: `Bearer ${token}` }
@@ -265,7 +198,7 @@ function App() {
       </header>
 
       <section
-        className={`login-card${user?.role === 'student' ? ' dashboard-card' : ''}`}
+        className={`login-card${user ? ' dashboard-card' : ''}`}
         aria-labelledby="page-title"
       >
         <div className="card-accent" />
@@ -408,6 +341,11 @@ function App() {
                 )}
               </section>
             )}
+            {user.role === 'student' && !isLoadingCourses && (
+              <AcademicHistory key={enrollments.map((item) => item.id).join()} />
+            )}
+            {user.role === 'teacher' && <TeacherGrades />}
+            {user.role === 'administrator' && <AdminAcademicHistory />}
           </div>
         ) : (
           <>
@@ -452,11 +390,11 @@ function App() {
             <aside className="demo-credentials">
               <span className="demo-icon" aria-hidden="true">i</span>
               <p>
-                <strong>Cuenta de prueba</strong>
+                <strong>Cuentas de prueba</strong>
                 <br />
-                estudiante@unicen.edu.bo
+                Estudiante: estudiante@unicen.edu.bo · Estudiante123!
                 <br />
-                Estudiante123!
+                Docente: docente@unicen.edu.bo · Docente123!
               </p>
             </aside>
           </>

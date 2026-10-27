@@ -20,15 +20,17 @@ enum AcademicPeriod {
 }
 
 model User {
-  id            String           @id @default(uuid())
-  email         String           @unique
-  passwordHash  String?
-  name          String
-  role          UserRole         @default(STUDENT)
-  student       Student?
-  taughtCourses CourseOffering[] @relation("CourseTeacher")
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id             String           @id @default(uuid())
+  email          String           @unique
+  passwordHash   String?
+  name           String
+  role           UserRole         @default(STUDENT)
+  student        Student?
+  taughtCourses  CourseOffering[] @relation("CourseTeacher")
+  recordedGrades Grade[]          @relation("GradeRecordedBy")
+  deletedGrades  Grade[]          @relation("GradeDeletedBy")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 }
 
 model Student {
@@ -87,7 +89,27 @@ model Enrollment {
   enrolledAt       DateTime       @default(now())
   student          Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  grades           Grade[]
 
   @@unique([studentId, courseOfferingId])
   @@index([courseOfferingId])
+}
+
+model Grade {
+  id           String     @id @default(uuid())
+  enrollmentId String
+  title        String
+  score        Float
+  weight       Int
+  comment      String?
+  recordedById String?
+  deletedById  String?
+  deletedAt    DateTime?
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  recordedBy   User?      @relation("GradeRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  deletedBy    User?      @relation("GradeDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([enrollmentId, deletedAt])
 }
