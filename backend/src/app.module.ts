@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { StudentsModule } from './students/students.module.js';
 import { SubjectsModule } from './subjects/subjects.module.js';
 import { CourseOfferingsModule } from './course-offerings/course-offerings.module.js';
+import { EnrollmentsModule } from './enrollments/enrollments.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CourseOfferingsModule } from './course-offerings/course-offerings.modul
     StudentsModule,
     SubjectsModule,
     CourseOfferingsModule,
+    EnrollmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

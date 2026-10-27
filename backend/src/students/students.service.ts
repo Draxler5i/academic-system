@@ -123,7 +123,23 @@ export class StudentsService {
       throw new NotFoundException('Estudiante no encontrado');
     }
 
-    await this.prisma.user.delete({ where: { id: student.userId } });
+    await this.prisma.$transaction(async (transaction) => {
+      const enrollments = await transaction.enrollment.groupBy({
+        by: ['courseOfferingId'],
+        where: { studentId: student.id },
+        _count: { _all: true },
+      });
+
+      await transaction.user.delete({ where: { id: student.userId } });
+      await Promise.all(
+        enrollments.map(({ courseOfferingId, _count }) =>
+          transaction.courseOffering.update({
+            where: { id: courseOfferingId },
+            data: { enrolled: { decrement: _count._all } },
+          }),
+        ),
+      );
+    });
     return { id: student.id, deleted: true };
   }
 

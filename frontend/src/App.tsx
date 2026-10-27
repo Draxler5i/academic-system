@@ -3,11 +3,6 @@ import type { FormEvent } from 'react'
 import './App.css'
 
 type UserRole = 'administrator' | 'teacher' | 'student'
-const roleLabels: Record<UserRole, string> = {
-  administrator: 'Administrador',
-  teacher: 'Docente',
-  student: 'Estudiante',
-}
 
 interface User {
   id: string
@@ -23,11 +18,43 @@ interface LoginResponse {
   user: User
 }
 
-const apiUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000').replace(
+type AcademicPeriod = 'ANNUAL' | 'FIRST_SEMESTER' | 'SECOND_SEMESTER'
+
+interface CourseOffering {
+  id: string
+  year: number
+  period: AcademicPeriod
+  section: string
+  capacity: number
+  enrolled: number
+  classroom: string | null
+  schedule: string | null
+  subject: {
+    code: string
+    name: string
+    description: string | null
+    credits: number
+  }
+  teacher: { name: string } | null
+}
+
+interface Enrollment {
+  id: string
+  enrolledAt: string
+  courseOffering: CourseOffering
+}
+
+const apiUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:3010').replace(
   /\/$/,
   '',
 )
 const tokenStorageKey = 'unicen_access_token'
+
+const periodLabels: Record<AcademicPeriod, string> = {
+  ANNUAL: 'Anual',
+  FIRST_SEMESTER: 'Primer semestre',
+  SECOND_SEMESTER: 'Segundo semestre',
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, options)
@@ -47,6 +74,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return body as T
 }
 
+async function loadStudentData(token: string) {
+  const headers = { Authorization: `Bearer ${token}` }
+  const [offerings, enrollments] = await Promise.all([
+    request<CourseOffering[]>('/course-offerings?year=2026', { headers }),
+    request<Enrollment[]>('/enrollments/me', { headers }),
+  ])
+  return { offerings, enrollments }
+}
+
 function App() {
   const [user, setUser] = useState<User | null>(null)
   const [email, setEmail] = useState('estudiante@unicen.edu.bo')
@@ -56,6 +92,14 @@ function App() {
   const [isCheckingSession, setIsCheckingSession] = useState(() =>
     Boolean(sessionStorage.getItem(tokenStorageKey)),
   )
+  const [offerings, setOfferings] = useState<CourseOffering[]>([])
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([])
+  const [isLoadingCourses, setIsLoadingCourses] = useState(() =>
+    Boolean(sessionStorage.getItem(tokenStorageKey)),
+  )
+  const [pendingOfferingId, setPendingOfferingId] = useState<string | null>(null)
+  const [courseError, setCourseError] = useState('')
+  const [courseMessage, setCourseMessage] = useState('')
 
   useEffect(() => {
     const token = sessionStorage.getItem(tokenStorageKey)
@@ -69,6 +113,37 @@ function App() {
       .finally(() => setIsCheckingSession(false))
   }, [])
 
+  useEffect(() => {
+    if (user?.role !== 'student') return
+
+    let isCurrent = true
+    const token = sessionStorage.getItem(tokenStorageKey)
+    if (!token) return
+
+    loadStudentData(token)
+      .then((data) => {
+        if (!isCurrent) return
+        setOfferings(data.offerings)
+        setEnrollments(data.enrollments)
+        setCourseError('')
+      })
+      .catch((reason: unknown) => {
+        if (!isCurrent) return
+        setCourseError(
+          reason instanceof Error
+            ? reason.message
+            : 'No fue posible cargar los cursos.',
+        )
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingCourses(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [user])
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
@@ -81,6 +156,7 @@ function App() {
         body: JSON.stringify({ email, password }),
       })
       sessionStorage.setItem(tokenStorageKey, result.accessToken)
+      setIsLoadingCourses(result.user.role === 'student')
       setUser(result.user)
     } catch (reason) {
       setError(
@@ -97,6 +173,77 @@ function App() {
     sessionStorage.removeItem(tokenStorageKey)
     setUser(null)
     setPassword('')
+    setOfferings([])
+    setEnrollments([])
+    setIsLoadingCourses(false)
+  }
+
+  async function refreshStudentData() {
+    const token = sessionStorage.getItem(tokenStorageKey)
+    if (!token) throw new Error('Tu sesión expiró. Inicia sesión nuevamente.')
+    const data = await loadStudentData(token)
+    setOfferings(data.offerings)
+    setEnrollments(data.enrollments)
+  }
+
+  async function handleEnrollment(offeringId: string) {
+    const token = sessionStorage.getItem(tokenStorageKey)
+    if (!token) {
+      setCourseError('Tu sesión expiró. Inicia sesión nuevamente.')
+      return
+    }
+
+    setPendingOfferingId(offeringId)
+    setCourseError('')
+    setCourseMessage('')
+    try {
+      await request<Enrollment>('/enrollments', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ courseOfferingId: offeringId }),
+      })
+      await refreshStudentData()
+      setCourseMessage('Te inscribiste al curso correctamente.')
+    } catch (reason) {
+      setCourseError(
+        reason instanceof Error
+          ? reason.message
+          : 'No fue posible completar la inscripción.',
+      )
+    } finally {
+      setPendingOfferingId(null)
+    }
+  }
+
+  async function handleCancellation(enrollmentId: string) {
+    const token = sessionStorage.getItem(tokenStorageKey)
+    if (!token) {
+      setCourseError('Tu sesión expiró. Inicia sesión nuevamente.')
+      return
+    }
+
+    setPendingOfferingId(enrollmentId)
+    setCourseError('')
+    setCourseMessage('')
+    try {
+      await request<{ deleted: boolean }>(`/enrollments/${enrollmentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      await refreshStudentData()
+      setCourseMessage('Cancelaste tu inscripción.')
+    } catch (reason) {
+      setCourseError(
+        reason instanceof Error
+          ? reason.message
+          : 'No fue posible cancelar la inscripción.',
+      )
+    } finally {
+      setPendingOfferingId(null)
+    }
   }
 
   if (isCheckingSession) {
@@ -117,7 +264,10 @@ function App() {
         </div>
       </header>
 
-      <section className="login-card" aria-labelledby="page-title">
+      <section
+        className={`login-card${user?.role === 'student' ? ' dashboard-card' : ''}`}
+        aria-labelledby="page-title"
+      >
         <div className="card-accent" />
         {user ? (
           <div className="welcome-panel">
@@ -129,15 +279,135 @@ function App() {
             <p className="welcome-copy">
               Has iniciado sesión como <strong>{user.name}</strong>.
             </p>
-            <div className="profile-details">
-              <span>Correo</span>
-              <strong>{user.email}</strong>
-              <span>Rol</span>
-              <strong className="role-badge">{roleLabels[user.role]}</strong>
-            </div>
             <button className="button button-secondary" onClick={handleLogout}>
               Cerrar sesión
             </button>
+            {user.role === 'student' && (
+              <section className="student-courses" aria-labelledby="courses-title">
+                <div className="courses-heading">
+                  <div>
+                    <p className="eyebrow">GESTIÓN 2026</p>
+                    <h2 id="courses-title">Inscripción a cursos</h2>
+                  </div>
+                  <span className="enrollment-count">
+                    {enrollments.length} inscritos
+                  </span>
+                </div>
+
+                {courseError && (
+                  <p className="course-feedback course-feedback-error" role="alert">
+                    {courseError}
+                  </p>
+                )}
+                {courseMessage && (
+                  <p className="course-feedback course-feedback-success" role="status">
+                    {courseMessage}
+                  </p>
+                )}
+
+                {isLoadingCourses ? (
+                  <p className="course-empty" role="status">Cargando cursos...</p>
+                ) : (
+                  <>
+                    <h3 className="course-section-title">Mis inscripciones</h3>
+                    {enrollments.length === 0 ? (
+                      <p className="course-empty">
+                        Aún no tienes cursos inscritos.
+                      </p>
+                    ) : (
+                      <div className="course-list">
+                        {enrollments.map((enrollment) => {
+                          const offering = enrollment.courseOffering
+                          return (
+                            <article className="course-item course-item-enrolled" key={enrollment.id}>
+                              <div className="course-item-main">
+                                <span className="course-code">{offering.subject.code}</span>
+                                <h4>{offering.subject.name}</h4>
+                                <p>
+                                  {periodLabels[offering.period]} {offering.year}
+                                  {' · Paralelo '}{offering.section}
+                                  {' · '}{offering.subject.credits} créditos
+                                </p>
+                              </div>
+                              <button
+                                className="course-action course-action-cancel"
+                                disabled={pendingOfferingId === enrollment.id}
+                                onClick={() => void handleCancellation(enrollment.id)}
+                                type="button"
+                              >
+                                {pendingOfferingId === enrollment.id ? 'Procesando...' : 'Cancelar'}
+                              </button>
+                            </article>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    <h3 className="course-section-title available-title">
+                      Ofertas disponibles
+                    </h3>
+                    <div className="course-list">
+                      {offerings.map((offering) => {
+                        const enrollment = enrollments.find(
+                          (item) => item.courseOffering.id === offering.id,
+                        )
+                        const hasSeats = offering.enrolled < offering.capacity
+                        const isPending = pendingOfferingId === offering.id
+
+                        return (
+                          <article className="course-item" key={offering.id}>
+                            <div className="course-item-main">
+                              <span className="course-code">{offering.subject.code}</span>
+                              <h4>{offering.subject.name}</h4>
+                              {offering.subject.description && (
+                                <p className="course-description">
+                                  {offering.subject.description}
+                                </p>
+                              )}
+                              <p>
+                                {periodLabels[offering.period]} {offering.year}
+                                {' · Paralelo '}{offering.section}
+                                {' · '}{offering.subject.credits} créditos
+                              </p>
+                              {(offering.schedule || offering.classroom) && (
+                                <p>
+                                  {[offering.schedule, offering.classroom]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </p>
+                              )}
+                              {offering.teacher && <p>Docente: {offering.teacher.name}</p>}
+                              <span className={`seat-status ${hasSeats ? '' : 'seat-status-full'}`}>
+                                {hasSeats
+                                  ? `${offering.capacity - offering.enrolled} cupos disponibles`
+                                  : 'Sin cupos disponibles'}
+                              </span>
+                            </div>
+                            {enrollment ? (
+                              <span className="already-enrolled">Inscrito</span>
+                            ) : (
+                              <button
+                                className="course-action"
+                                disabled={!hasSeats || pendingOfferingId !== null}
+                                onClick={() => void handleEnrollment(offering.id)}
+                                type="button"
+                              >
+                                {isPending ? 'Inscribiendo...' : 'Inscribirme'}
+                              </button>
+                            )}
+                          </article>
+                        )
+                      })}
+                      {offerings.length === 0 && (
+                        <p className="course-empty">
+                          No hay ofertas disponibles para esta gestión.
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </section>
+            )}
           </div>
         ) : (
           <>

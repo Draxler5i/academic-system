@@ -4,7 +4,7 @@ Interfaz de inicio de sesión para el sistema académico, creada con React, Type
 
 ## Inicio local
 
-1. Inicia el backend en `http://localhost:3000`.
+1. Inicia el backend en `http://localhost:3010`.
 2. Desde esta carpeta ejecuta:
 
    ```bash

@@ -51,6 +51,16 @@ Una oferta identifica la gestión, periodo y paralelo de una materia. La combina
 
 El seed crea seis materias y siete ofertas de ejemplo para la gestión 2026. Puedes volver a ejecutar `npm run db:seed`: actualiza los registros de demostración existentes sin duplicarlos.
 
+## Inscripciones a cursos
+
+Los estudiantes pueden gestionar solo sus propias inscripciones:
+
+- `POST /enrollments` con `{ "courseOfferingId": "<id-de-la-oferta>" }` para inscribirse.
+- `GET /enrollments/me` para consultar sus inscripciones.
+- `DELETE /enrollments/:id` para cancelar una inscripción propia.
+
+Administradores y docentes pueden consultar todas las inscripciones con `GET /enrollments`; los administradores también pueden cancelar cualquiera. La inscripción es atómica: evita duplicados y no permite superar los cupos disponibles, incluso con solicitudes concurrentes. El estudiante de demostración queda inscrito en Álgebra e Informática I al ejecutar el seed.
+
 ## Pruebas y compilación
 
 ```bash

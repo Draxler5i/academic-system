@@ -37,7 +37,7 @@ async function main() {
     role: 'STUDENT',
   });
 
-  await prisma.student.upsert({
+  const studentProfile = await prisma.student.upsert({
     where: { userId: student.id },
     update: {
       studentCode: required('DEMO_STUDENT_CODE'),
@@ -145,8 +145,47 @@ async function main() {
     });
   }
 
+  for (const code of ['MAT-101', 'INF-101']) {
+    const subject = seededSubjects.get(code);
+    const offering = await prisma.courseOffering.findUnique({
+      where: {
+        subjectId_year_period_section: {
+          subjectId: subject.id,
+          year: 2026,
+          period: 'FIRST_SEMESTER',
+          section: 'A',
+        },
+      },
+    });
+    if (!offering) {
+      throw new Error(`Demo course offering for ${code} was not created`);
+    }
+
+    await prisma.enrollment.upsert({
+      where: {
+        studentId_courseOfferingId: {
+          studentId: studentProfile.id,
+          courseOfferingId: offering.id,
+        },
+      },
+      update: {},
+      create: {
+        studentId: studentProfile.id,
+        courseOfferingId: offering.id,
+      },
+    });
+
+    const enrolled = await prisma.enrollment.count({
+      where: { courseOfferingId: offering.id },
+    });
+    await prisma.courseOffering.update({
+      where: { id: offering.id },
+      data: { enrolled },
+    });
+  }
+
   console.log(
-    `Seeded accounts, ${subjects.length} subjects, and ${offerings.length} course offerings.`,
+    `Seeded accounts, ${subjects.length} subjects, ${offerings.length} course offerings, and demo enrollments.`,
   );
 }
 

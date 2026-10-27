@@ -32,17 +32,18 @@ model User {
 }
 
 model Student {
-  id          String    @id @default(uuid())
-  userId      String    @unique
-  studentCode String    @unique
+  id          String       @id @default(uuid())
+  userId      String       @unique
+  studentCode String       @unique
   firstName   String
   lastName    String
   phone       String?
   birthDate   DateTime?
   address     String?
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
 model Subject {
@@ -58,22 +59,35 @@ model Subject {
 }
 
 model CourseOffering {
-  id        String         @id @default(uuid())
-  subjectId String
-  teacherId String?
-  year      Int
-  period    AcademicPeriod
-  section   String         @default("A")
-  capacity  Int
-  enrolled  Int            @default(0)
-  classroom String?
-  schedule  String?
-  isActive  Boolean        @default(true)
-  subject   Subject        @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  teacher   User?          @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id          String         @id @default(uuid())
+  subjectId   String
+  teacherId   String?
+  year        Int
+  period      AcademicPeriod
+  section     String         @default("A")
+  capacity    Int
+  enrolled    Int            @default(0)
+  classroom   String?
+  schedule    String?
+  isActive    Boolean        @default(true)
+  subject     Subject        @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  teacher     User?          @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  enrollments Enrollment[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@unique([subjectId, year, period, section])
   @@index([year, period])
+}
+
+model Enrollment {
+  id               String         @id @default(uuid())
+  studentId        String
+  courseOfferingId String
+  enrolledAt       DateTime       @default(now())
+  student          Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseOfferingId])
+  @@index([courseOfferingId])
 }
