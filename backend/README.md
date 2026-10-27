@@ -35,6 +35,22 @@ Las consultas requieren token de administrador o docente. Crear, editar y elimin
 
 Los correos y códigos de estudiante deben ser únicos. La API valida los DTO y rechaza propiedades no permitidas. Las respuestas incluyen el correo de la cuenta, pero nunca su contraseña ni hash.
 
+## Catálogo de materias y oferta por gestión
+
+Las rutas de consulta requieren autenticación; crear, editar y eliminar requieren el rol administrador.
+
+- `GET /subjects` y `GET /subjects/:id` consultan el catálogo.
+- `POST /subjects` recibe `code`, `name`, `credits` y opcionalmente `description` e `isActive`.
+- `PATCH /subjects/:id` y `DELETE /subjects/:id` administran las materias. No se puede borrar una materia con ofertas asociadas.
+- `GET /course-offerings` lista ofertas; se puede filtrar con `year`, `period` (`ANNUAL`, `FIRST_SEMESTER`, `SECOND_SEMESTER`) y `subjectId`.
+- `GET /course-offerings/:id` consulta una oferta.
+- `POST /course-offerings` recibe `subjectId`, `year`, `period`, `capacity` y opcionalmente `section`, `teacherId`, `classroom` y `schedule`.
+- `PATCH /course-offerings/:id` y `DELETE /course-offerings/:id` administran las ofertas.
+
+Una oferta identifica la gestión, periodo y paralelo de una materia. La combinación materia/año/periodo/paralelo es única, y la capacidad no puede reducirse por debajo de las inscripciones actuales.
+
+El seed crea seis materias y siete ofertas de ejemplo para la gestión 2026. Puedes volver a ejecutar `npm run db:seed`: actualiza los registros de demostración existentes sin duplicarlos.
+
 ## Pruebas y compilación
 
 ```bash

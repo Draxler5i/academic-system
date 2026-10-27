@@ -13,15 +13,22 @@ enum UserRole {
   STUDENT
 }
 
+enum AcademicPeriod {
+  ANNUAL
+  FIRST_SEMESTER
+  SECOND_SEMESTER
+}
+
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String?
-  name         String
-  role         UserRole @default(STUDENT)
-  student      Student?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String           @id @default(uuid())
+  email         String           @unique
+  passwordHash  String?
+  name          String
+  role          UserRole         @default(STUDENT)
+  student       Student?
+  taughtCourses CourseOffering[] @relation("CourseTeacher")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 }
 
 model Student {
@@ -36,4 +43,37 @@ model Student {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model Subject {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  name        String
+  description String?
+  credits     Int
+  isActive    Boolean          @default(true)
+  offerings   CourseOffering[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model CourseOffering {
+  id        String         @id @default(uuid())
+  subjectId String
+  teacherId String?
+  year      Int
+  period    AcademicPeriod
+  section   String         @default("A")
+  capacity  Int
+  enrolled  Int            @default(0)
+  classroom String?
+  schedule  String?
+  isActive  Boolean        @default(true)
+  subject   Subject        @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  teacher   User?          @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([subjectId, year, period, section])
+  @@index([year, period])
 }
