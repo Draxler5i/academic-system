@@ -23,7 +23,18 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+API del sistema académico construida con NestJS. El módulo de autenticación usa JWT y una cuenta de estudiante en memoria; no requiere base de datos.
+
+## Autenticación de demostración
+
+En esta carpeta copia `.env.example` a `.env` y ejecuta `npm run start:dev`. Luego usa:
+
+- `POST /auth/login` con `{ "email": "estudiante@unicen.edu.bo", "password": "Estudiante123!" }`
+- `GET /auth/me` con el encabezado `Authorization: Bearer <accessToken>` para consultar el perfil autenticado.
+
+Los roles disponibles son `administrator`, `teacher` y `student`; por ahora solo existe el usuario de demostración con rol `student`.
+
+En desarrollo se utiliza una clave JWT local predeterminada. Para producción configura `JWT_SECRET` y `FRONTEND_URL` en `.env`; la API no inicia en producción sin `JWT_SECRET`. Las credenciales y la cuenta en memoria son solo para desarrollo y deben reemplazarse antes de desplegar.
 
 ## Project setup
 

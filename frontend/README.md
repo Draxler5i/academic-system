@@ -1,32 +1,22 @@
-# React + TypeScript + Vite
+# UNICEN - frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Interfaz de inicio de sesión para el sistema académico, creada con React, TypeScript y Vite.
 
-Currently, two official plugins are available:
+## Inicio local
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. Inicia el backend en `http://localhost:3000`.
+2. Desde esta carpeta ejecuta:
 
-## React Compiler
+   ```bash
+   npm install
+   npm run dev
+   ```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+La URL del backend se configura con `VITE_API_URL`. Puedes copiar `.env.example` a `.env` para cambiarla.
 
-## Expanding the Oxlint configuration
+## Cuenta de demostración
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+- Correo: `estudiante@unicen.edu.bo`
+- Contraseña: `Estudiante123!`
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+La aplicación obtiene un JWT del backend y valida la sesión existente al recargar la página.
