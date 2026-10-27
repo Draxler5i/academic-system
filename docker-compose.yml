@@ -1,11 +1,19 @@
+# Full stack: PostgreSQL + NestJS API + React web.
+#   docker compose up --build
+# Web: http://localhost:8080 · API: http://localhost:3010
+# Every value has a local-development default; override them in a root .env file.
+# The demo credentials below are for local evaluation only.
+
+x-database: &database
+  POSTGRES_USER: ${POSTGRES_USER:-unicen}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-unicen_dev_password}
+  POSTGRES_DB: ${POSTGRES_DB:-academic_system}
+
 services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in backend/.env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in backend/.env}
-      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in backend/.env}
+    environment: *database
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -19,6 +27,59 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 3010
+      DATABASE_URL: postgresql://${POSTGRES_USER:-unicen}:${POSTGRES_PASSWORD:-unicen_dev_password}@postgres:5432/${POSTGRES_DB:-academic_system}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-docker-local-secret-change-before-deploy}
+      FRONTEND_URL: http://localhost:${WEB_PORT:-8080}
+      GRADING_POLICY: ${GRADING_POLICY:-weighted}
+      PASSING_SCORE: ${PASSING_SCORE:-51}
+      # docker-entrypoint.sh runs prisma/seed.mjs on every start when enabled.
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@unicen.edu.bo}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-AdminDemo123!}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrador UNICEN}
+      DEMO_TEACHER_EMAIL: ${DEMO_TEACHER_EMAIL:-docente@unicen.edu.bo}
+      DEMO_TEACHER_PASSWORD: ${DEMO_TEACHER_PASSWORD:-Docente123!}
+      DEMO_TEACHER_NAME: ${DEMO_TEACHER_NAME:-Docente de prueba}
+      DEMO_STUDENT_EMAIL: ${DEMO_STUDENT_EMAIL:-estudiante@unicen.edu.bo}
+      DEMO_STUDENT_PASSWORD: ${DEMO_STUDENT_PASSWORD:-Estudiante123!}
+      DEMO_STUDENT_FIRST_NAME: ${DEMO_STUDENT_FIRST_NAME:-Estudiante}
+      DEMO_STUDENT_LAST_NAME: ${DEMO_STUDENT_LAST_NAME:-de prueba}
+      DEMO_STUDENT_CODE: ${DEMO_STUDENT_CODE:-EST-0001}
+    ports:
+      - "${API_PORT:-3010}:3010"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3010').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:${API_PORT:-3010}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
 
 volumes:
   postgres_data:
